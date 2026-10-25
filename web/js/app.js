@@ -20,6 +20,8 @@
     ];
 
     var QUALITIES = {'-1': 'Automatic', 1: 'Fast', 2: 'Balanced', 3: 'Beautiful'};
+    // The player's latency mode; Automatic follows the Tizen version and the codec.
+    var LATENCIES = {0: 'Automatic', 1: 'Low', 2: 'Ultra low'};
 
     function bandwidthText(kbps) {
         return kbps < 0 ? 'Automatic' : kbps / 1000 + ' Mbit/s';
@@ -32,6 +34,8 @@
             text: function (v) { return v + ' fps'; }},
         {key: 'hevc', label: 'Video codec', values: [false, true],
             text: function (v) { return v ? 'HEVC' : 'H.264'; }},
+        {key: 'latency', label: 'Player latency', values: [0, 1, 2],
+            text: function (v) { return LATENCIES[v]; }},
         {key: 'quality', label: 'Quality', values: [-1, 1, 2, 3],
             text: function (v) { return QUALITIES[v]; }},
         {key: 'bandwidth', label: 'Bandwidth limit', values: [-1, 5000, 10000, 15000, 20000, 30000, 50000, 75000, 100000],
@@ -46,8 +50,8 @@
 
     // 20 Mbit/s, Moonlight's default for 1080p at 60 fps: on Wi-Fi a lower limit means smaller
     // keyframes, so fewer packets to lose. Big Picture, as in Steam's own Steam Link app.
-    var DEFAULT_SETTINGS = {resolution: 1, framerate: 60, hevc: false, quality: 2, bandwidth: 20000, audio: true,
-        bigPicture: true, stats: false};
+    var DEFAULT_SETTINGS = {resolution: 1, framerate: 60, hevc: false, latency: 0, quality: 2, bandwidth: 20000,
+        audio: true, bigPicture: true, stats: false};
     var ONLINE_MS = 9000;
     var PAIR_TIMEOUT_MS = 120000;
     var CONNECT_TIMEOUT_MS = 30000;
@@ -666,11 +670,12 @@
         renderSettings();
         var dlg = $('#dialog-settings');
         var hevcAtOpen = state.settings.hevc;
+        var latencyAtOpen = state.settings.latency;
         openDialog(dlg, $('#settings-list li'), function (action, el) {
             if (action === 'close' || action === 'cancel') {
                 closeDialog();
-                // The module picks the player's latency mode from the codec at page load.
-                if (state.settings.hevc !== hevcAtOpen) location.reload();
+                // The module picks the player's latency mode from these settings at page load.
+                if (state.settings.hevc !== hevcAtOpen || state.settings.latency !== latencyAtOpen) location.reload();
                 return;
             }
             if (el && el.hasAttribute('data-key')) changeSetting(el, 1);

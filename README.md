@@ -83,6 +83,7 @@ typed it there. Steam's own on-screen keyboard in Big Picture works too.
 | Maximum resolution | 720p, 1080p, 1440p, 4K | 1080p | For 4K, use HEVC and a bandwidth limit of 50 Mbit/s or more. |
 | Frame rate | 60 or 120 fps | 60 | On a Samsung S90C the app showed about 60 frames per second even at 120. |
 | Video codec | H.264, HEVC | H.264 | Steam sends HEVC only when the computer can encode it in hardware. |
+| Player latency | Automatic, Low, Ultra low | Automatic | The TV player's latency mode, see [docs/how-it-works.md](docs/how-it-works.md#the-tvs-player). Changing it reloads the app. |
 | Quality | Automatic, Fast, Balanced, Beautiful | Balanced | Steam's own quality preference. |
 | Bandwidth limit | Automatic, 5 to 100 Mbit/s | 20 Mbit/s | A lower limit means fewer packets to lose on Wi-Fi. |
 | Audio | On, off | On | |

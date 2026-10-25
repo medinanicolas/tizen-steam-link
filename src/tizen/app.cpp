@@ -632,9 +632,20 @@ int main() {
     // the first, and dropped about 17% of H.264 frames. So Tizen 9 and later get low latency,
     // and Game Mode comes from the use.game.mode metadata in config.xml instead, as in Moonlight
     // for Tizen. HEVC gets low latency on every version, since nothing older was tried with it.
+    //
+    // The latency setting overrides that rule: 1 is low, 2 ultra low (where the TV has it). On a
+    // QN90D TV (Tizen 9) a test app played H.264 in ultra low latency, so the M7's problems may
+    // not apply to every TV.
     bool hevc = EM_ASM_INT({
         try {
             return JSON.parse(localStorage.getItem('tsl.settings') || '{}').hevc ? 1 : 0;
+        } catch (e) {
+            return 0;
+        }
+    });
+    int latency = EM_ASM_INT({
+        try {
+            return JSON.parse(localStorage.getItem('tsl.settings') || '{}').latency | 0;
         } catch (e) {
             return 0;
         }
@@ -648,9 +659,11 @@ int main() {
         }
     });
     // Older TVs may lack the ultra low latency mode altogether.
-    bool ultraLow = tizenVersion < 9 && !hevc && samsung::wasm::EmssVersionInfo::Create().has_ultra_low_latency;
-    tsl::Log(IHS_LogLevelInfo, "Player", "%s latency mode (Tizen %d, codec setting %s)", ultraLow ? "Ultra low" : "Low",
-             tizenVersion, hevc ? "HEVC" : "H.264");
+    bool hasUltraLow = samsung::wasm::EmssVersionInfo::Create().has_ultra_low_latency;
+    bool ultraLow = latency == 0 ? tizenVersion < 9 && !hevc && hasUltraLow : latency == 2 && hasUltraLow;
+    tsl::Log(IHS_LogLevelInfo, "Player", "%s latency mode (Tizen %d, codec setting %s, latency setting %s)",
+             ultraLow ? "Ultra low" : "Low", tizenVersion, hevc ? "HEVC" : "H.264",
+             latency == 1 ? "low" : latency == 2 ? "ultra low" : "automatic");
     tsl::g_app = new tsl::App(ultraLow ? samsung::wasm::EmssLatencyMode::kUltraLow : samsung::wasm::EmssLatencyMode::kLow);
     EM_ASM({
         if (typeof window.tslReady === 'function') window.tslReady();

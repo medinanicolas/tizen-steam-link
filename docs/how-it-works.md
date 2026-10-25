@@ -80,6 +80,10 @@ Samsung's player also has latency modes, and the app picks one when the page loa
   to Game Mode there, and the low latency mode for HEVC.
 - TVs without the ultra low latency mode use the low latency mode for both.
 
+The Player latency setting overrides this: Low or Ultra low use that mode with either codec
+(Ultra low only where the TV has it). On a Samsung QN90D TV on Tizen 9, a test app played H.264 in the
+ultra low latency mode with Game Mode on, so the monitor's problems may not apply to every TV.
+
 The player takes its mode when it starts, so the page reloads when the codec setting changes.
 It also reloads after every stream, which gives each stream a fresh player.
 
