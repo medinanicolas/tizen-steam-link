@@ -831,6 +831,16 @@ void TestDataChannelGetsPastLostPacket() {
     IHS_SessionDestroy(session);
 }
 
+// The host silence check reads the clock, then the last packet's time. A packet arriving in
+// between can be 1 ms newer than the clock reading: that is no silence, not 4294967295 ms of it,
+// which used to end live streams.
+void TestSilenceMs() {
+    CHECK_EQ(IHS_SessionSilenceMs(1000, 1001), -1);
+    CHECK(IHS_SessionSilenceMs(1000, 1001) < 10000);
+    CHECK_EQ(IHS_SessionSilenceMs(12000, 1000), 11000);
+    CHECK_EQ(IHS_SessionSilenceMs(5, 0xFFFFFFF0u), 21);  // the 32-bit millisecond clock wraps
+}
+
 // Steam's MTU pings arrive as unconnected packets: [u8 type][u32 size][CDiscoveryPingRequest].
 // A size near 4 GB used to pass the bounds check on 32 bits (offset + size wrapped around), and
 // packet_size_requested went to the padding unchecked. The session isn't run, so its send queue
@@ -994,6 +1004,7 @@ int main() {
     TestFec();
     TestDataChannelGetsPastLostPacket();
     TestRetransmissionCancelRacesTimer();
+    TestSilenceMs();
     TestUnconnectedPingSizes();
     TestAudioEmptyCodecData();
     TestWakePacket();
