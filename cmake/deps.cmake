@@ -20,7 +20,8 @@ endif ()
 # frames reported to the app, the host's MAC address, 250 Hz HID polling, a timeout for a
 # silent host, frame rates above 59.94, a streaming request that can ask for Big Picture, a
 # use-after-free when an ACK meets its retransmit timer, and data channels that start over after
-# a gap longer than their window; each patch starts with a description.
+# a gap longer than their window, size checks for unconnected packets that hold on 32 bits, FEC
+# allocation failures and empty audio codec data; each patch starts with a description.
 # (0003, logging for the pairing request, was dropped once pairing worked on the TV.)
 set(TSL_IHSLIB_PATCHES ${CMAKE_CURRENT_LIST_DIR}/../patches/ihslib)
 FetchContent_Declare(ihslib
@@ -45,6 +46,9 @@ FetchContent_Declare(ihslib
               COMMAND patch -p1 --forward -i ${TSL_IHSLIB_PATCHES}/0018-streaming-request-interface.patch
               COMMAND patch -p1 --forward -i ${TSL_IHSLIB_PATCHES}/0019-retransmission-cancel-race.patch
               COMMAND patch -p1 --forward -i ${TSL_IHSLIB_PATCHES}/0020-data-window-gap.patch
+              COMMAND patch -p1 --forward -i ${TSL_IHSLIB_PATCHES}/0021-unconnected-size-checks.patch
+              COMMAND patch -p1 --forward -i ${TSL_IHSLIB_PATCHES}/0022-fec-allocation-failure.patch
+              COMMAND patch -p1 --forward -i ${TSL_IHSLIB_PATCHES}/0023-audio-empty-codec-data.patch
         SOURCE_SUBDIR no-cmake)
 
 # protobuf-c runtime only; the generated .pb-c.c files ship with ihslib.

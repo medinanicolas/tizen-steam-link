@@ -136,3 +136,6 @@ Each patch starts with a description of what it does and why.
 | 0018 | Asks Steam for the desktop only when the app wants it, so Big Picture can open. |
 | 0019 | Fixes a use-after-free when Steam's confirmation of a packet arrived just as it was about to be resent, which is likeliest during play. |
 | 0020 | Starts a data channel over after a gap longer than its window, instead of leaving it quiet for good. |
+| 0021 | Checks the size of unconnected packets (Steam's MTU pings) without overflowing on 32 bits, and caps the padding a ping can ask for. |
+| 0022 | Drops an error correction shard when its message's buffer can't be allocated, instead of writing through a null pointer. |
+| 0023 | Skips empty audio codec data, which led to a `memcpy` from a null pointer. |

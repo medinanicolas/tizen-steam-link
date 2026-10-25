@@ -1,0 +1,23 @@
+Drop an FEC shard when its message's buffer can't be allocated.
+
+IHS_SessionFECAdd copied each shard into a calloc() of up to 255 shards of 2048 bytes without
+checking it. On a TV the module's memory is fixed (128 MB), and if that allocation failed the
+copy would write near address 0, where WebAssembly keeps static data, without crashing there.
+The group now stays inactive and the shard is dropped, as a late one would be; a later shard of
+the same message tries again.
+
+diff --git a/src/session/fec.c b/src/session/fec.c
+index bc831c8..a544c10 100644
+--- a/src/session/fec.c
++++ b/src/session/fec.c
+@@ -144,6 +144,10 @@ bool IHS_SessionFECAdd(IHS_SessionFEC *fec, const IHS_SessionPacket *shard, IHS_
+         group->dataShards = (uint16_t) dataShards;
+         group->parityShards = parityShards;
+         group->shards = calloc(dataShards + parityShards, shardSize);
++        if (group->shards == NULL) {
++            memset(group, 0, sizeof(FECGroup));
++            return false;
++        }
+     } else if (group->packetId != id || group->length != length || group->shardSize != shardSize ||
+                group->parityShards != parityShards) {
+         return false;
