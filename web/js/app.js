@@ -802,7 +802,14 @@
         var st = null;
         try {
             st = JSON.parse(mod.stats());
-        } catch (e) { /* counts as nothing new below */ }
+        } catch (e) {
+            // A trap in the module means its memory is broken; anything else counts as nothing
+            // new below.
+            if (e instanceof WebAssembly.RuntimeError) {
+                tsl.emit('fatal', {message: 'The streaming module stopped: ' + e.message, crashed: true});
+                return;
+            }
+        }
         var now = Date.now();
         checkStalled(s, st, now);
         if (!st || s.ending) return;
@@ -1266,8 +1273,15 @@
             note('stream failed: ' + d.reason);
         });
         tsl.on('fatal', function (d) {
-            state.fatal = true;
             note('FATAL ' + d.message);
+            // A crash during a stream: a fresh page brings a fresh module, and the stream
+            // reconnects as it does when it gets stuck.
+            if (d.crashed && state.stream && !state.stream.ending) {
+                console.warn('[Stream] ' + d.message);
+                connectionLost(state.stream, true, 'The app hit an error, reconnecting…');
+                return;
+            }
+            state.fatal = true;
             toast(d.message, true, true);
         });
     }

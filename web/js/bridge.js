@@ -62,6 +62,11 @@
         },
         printErr: function (text) {
             console.warn(text);
+            // A module thread that crashes (a trap such as "memory access out of bounds") only
+            // reaches the page as this line; the module is unusable from then on.
+            if (/^pthread sent an error!/.test(text)) {
+                dispatch('fatal', {message: 'The streaming module stopped: ' + text, crashed: true});
+            }
         },
         onAbort: function (what) {
             dispatch('fatal', {message: 'The streaming module stopped: ' + what});
