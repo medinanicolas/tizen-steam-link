@@ -1,0 +1,44 @@
+Check unconnected packet sizes without overflowing on 32 bits.
+
+OnUnconnected checked the message size with offset + messageSize > size. With a 32-bit size_t,
+as in WebAssembly, a messageSize near 4 GB wraps the sum around, the check passes and
+protobuf-c reads gigabytes past a 30-byte packet. The check now subtracts. The ping's
+packet_size_requested also went to the padding unchecked, so one ping could ask for gigabytes
+of it; pings above what the UDP backend receives (2048 bytes) get no answer. Steam's MTU probes
+stay around 1500 bytes. Any device on the network can send these packets to the session port.
+
+diff --git a/src/session/channels/ch_discovery.c b/src/session/channels/ch_discovery.c
+index c2eb966..f404ba3 100644
+--- a/src/session/channels/ch_discovery.c
++++ b/src/session/channels/ch_discovery.c
+@@ -47,6 +47,9 @@ static void OnDiscoveryReceived(IHS_SessionChannel *channel, IHS_SessionPacket *
+ 
+ static void OnConnectACK(IHS_SessionChannel *channel, const IHS_SessionPacket *packet);
+ 
++/* Largest ping to answer: what the UDP backend receives at most. */
++#define IHS_DISCOVERY_PING_MAX_SIZE 2048
++
+ static void OnUnconnected(IHS_SessionChannel *channel, const IHS_SessionPacket *packet);
+ 
+ static void OnDisconnect(IHS_SessionChannel *channel);
+@@ -126,7 +129,9 @@ static void OnUnconnected(IHS_SessionChannel *channel, const IHS_SessionPacket *
+     offset += 1;
+     uint32_t messageSize;
+     offset += IHS_ReadUInt32LE(IHS_BufferPointerAt(&packet->body, offset), &messageSize);
+-    if (offset + messageSize > packet->body.size) return;
++    // Subtract instead of adding: with a 32-bit size_t (WebAssembly) offset + messageSize wraps
++    // around for a messageSize near 4 GB and the check passes.
++    if (messageSize > packet->body.size - offset) return;
+     if (type == k_EStreamDiscoveryPingRequest) {
+         CDiscoveryPingRequest *request = cdiscovery_ping_request__unpack(NULL, messageSize,
+                                                                          IHS_BufferPointerAt(&packet->body, offset));
+@@ -157,6 +162,9 @@ static void OnDisconnect(IHS_SessionChannel *channel) {
+ 
+ static void OnPingRequest(IHS_SessionChannel *channel, const IHS_SessionPacket *packet,
+                           const CDiscoveryPingRequest *request) {
++    // Steam probes the MTU with pings of about 1500 bytes at most. Without a cap a single ping
++    // could ask for gigabytes of padding.
++    if (request->packet_size_requested > IHS_DISCOVERY_PING_MAX_SIZE) return;
+     CDiscoveryPingResponse response = CDISCOVERY_PING_RESPONSE__INIT;
+     PROTOBUF_C_SET_VALUE(response, sequence, request->sequence);
+     PROTOBUF_C_SET_VALUE(response, packet_size_received, IHS_PACKET_HEADER_SIZE + packet->body.size);
