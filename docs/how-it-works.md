@@ -139,3 +139,4 @@ Each patch starts with a description of what it does and why.
 | 0023 | Checks the size of unconnected packets (Steam's MTU pings) without overflowing on 32 bits, and caps the padding a ping can ask for. |
 | 0024 | Drops an error correction shard when its message's buffer can't be allocated, instead of writing through a null pointer. |
 | 0025 | Skips empty audio codec data, which led to a `memcpy` from a null pointer. |
+| 0026 | Lets the app ask for an adaptive bitrate, as Steam's own Steam Link app does. |
