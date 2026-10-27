@@ -1271,9 +1271,11 @@
             note('FATAL ' + d.message);
             // A crash during a stream: a fresh page brings a fresh module, and the stream
             // reconnects as it does when it gets stuck.
-            if (d.crashed && state.stream && !state.stream.ending) {
-                console.warn('[Stream] ' + d.message);
-                connectionLost(state.stream, true, 'The app hit an error, reconnecting…');
+            if (d.crashed && state.stream) {
+                if (!state.stream.ending) {
+                    console.warn('[Stream] ' + d.message);
+                    connectionLost(state.stream, true, 'The app hit an error, reconnecting…');
+                }
                 return;
             }
             state.fatal = true;
