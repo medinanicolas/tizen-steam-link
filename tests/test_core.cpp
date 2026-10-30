@@ -34,6 +34,7 @@ extern "C" {
 #include "protobuf/remoteplay.pb-c.h"
 #include "session/channels/ch_data.h"
 #include "session/channels/ch_data_audio.h"
+#include "session/channels/ch_data_microphone.h"
 #include "session/fec.h"
 #include "session/retransmission.h"
 #include "session/session_pri.h"
@@ -937,6 +938,10 @@ void TestAudioEmptyCodecData() {
     IHS_SessionChannel *channel = IHS_SessionChannelDataAudioCreate(session, &start);
     CHECK(channel != nullptr);
     IHS_SessionChannelStop(channel);
+    IHS_SessionChannelDestroy(channel);
+    // The microphone channel starts from the same message.
+    channel = IHS_SessionChannelDataMicrophoneCreate(session, &start);
+    CHECK(channel != nullptr);
     IHS_SessionChannelDestroy(channel);
     IHS_SessionDestroy(session);
 }
