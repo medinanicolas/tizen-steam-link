@@ -1269,9 +1269,14 @@
         });
         tsl.on('fatal', function (d) {
             note('FATAL ' + d.message);
+            // After a crash nothing calls into the module again: the thread may have died holding
+            // one of its locks, and a call would then hang the page before it can reload.
+            if (d.crashed) mod = null;
             // A crash during a stream: a fresh page brings a fresh module, and the stream
             // reconnects as it does when it gets stuck.
             if (d.crashed && state.stream) {
+                // The input handlers call the module while the stream is connected.
+                state.stream.connected = false;
                 if (!state.stream.ending) {
                     console.warn('[Stream] ' + d.message);
                     connectionLost(state.stream, true, 'The app hit an error, reconnecting…');
