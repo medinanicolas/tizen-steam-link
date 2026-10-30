@@ -30,8 +30,36 @@ enum {
 
 /* SDL_JOYSTICK_POWER_UNKNOWN */
 #define POWER_LEVEL_UNKNOWN 0xFF
-/* EControllerType k_ControllerTypeUnknownNonSteamController */
-#define CONTROLLER_TYPE_GENERIC 30
+/* EControllerType values, same numbering as ihslib's SDL backend. */
+#define CONTROLLER_TYPE_GENERIC 30   /* k_ControllerTypeUnknownNonSteamController */
+#define CONTROLLER_TYPE_XBOX360 31
+#define CONTROLLER_TYPE_XBOXONE 32
+#define CONTROLLER_TYPE_PS4 34
+#define CONTROLLER_TYPE_SWITCH_PRO 38
+#define CONTROLLER_TYPE_PS5 45
+
+int32_t TSL_GamepadControllerType(uint16_t vendorId, uint16_t productId) {
+    switch (vendorId) {
+        case 0x054c: /* Sony */
+            switch (productId) {
+                case 0x0ce6: /* DualSense */
+                case 0x0df2: /* DualSense Edge */
+                    return CONTROLLER_TYPE_PS5;
+                case 0x05c4:
+                case 0x09cc:
+                case 0x0ba0: /* DualShock 4 (v1, v2, USB adapter) */
+                    return CONTROLLER_TYPE_PS4;
+            }
+            break;
+        case 0x045e: /* Microsoft */
+            if (productId == 0x028e || productId == 0x028f || productId == 0x0719) return CONTROLLER_TYPE_XBOX360;
+            return CONTROLLER_TYPE_XBOXONE;
+        case 0x057e: /* Nintendo */
+            if (productId == 0x2009) return CONTROLLER_TYPE_SWITCH_PRO;
+            break;
+    }
+    return CONTROLLER_TYPE_GENERIC;
+}
 
 typedef struct Slot {
     bool connected;
@@ -147,6 +175,52 @@ bool TSL_GamepadParseIds(const char *id, uint16_t *vendorId, uint16_t *productId
     if (strlen(id) >= 10 && id[4] == '-' && id[9] == '-' && ParseHex4(id, &v) && ParseHex4(id + 5, &p)) {
         *vendorId = v;
         *productId = p;
+        return true;
+    }
+    return false;
+}
+
+/* Lowercase ASCII copy of at most size - 1 characters. */
+static void LowerCopy(char *dest, size_t size, const char *src) {
+    size_t i = 0;
+    for (; i + 1 < size && src[i] != '\0'; i++) {
+        char c = src[i];
+        dest[i] = (c >= 'A' && c <= 'Z') ? (char) (c - 'A' + 'a') : c;
+    }
+    dest[i] = '\0';
+}
+
+bool TSL_GamepadGuessIds(const char *name, uint16_t *vendorId, uint16_t *productId) {
+    static const struct {
+        const char *needle;
+        uint16_t vendor, product;
+    } known[] = {
+            {"dualsense edge", 0x054c, 0x0df2},
+            {"dualsense", 0x054c, 0x0ce6},
+            {"dualshock 4", 0x054c, 0x09cc},
+            {"ps5", 0x054c, 0x0ce6},
+            {"ps4", 0x054c, 0x09cc},
+            {"xbox 360", 0x045e, 0x028e},
+            {"xbox", 0x045e, 0x0b13},
+            {"pro controller", 0x057e, 0x2009},
+    };
+    *vendorId = 0;
+    *productId = 0;
+    if (name == NULL) return false;
+    char lower[128];
+    LowerCopy(lower, sizeof(lower), name);
+    for (size_t i = 0; i < sizeof(known) / sizeof(known[0]); i++) {
+        if (strstr(lower, known[i].needle) != NULL) {
+            *vendorId = known[i].vendor;
+            *productId = known[i].product;
+            return true;
+        }
+    }
+    /* Sony's own Bluetooth name, used by both the DualShock 4 and the DualSense. The
+     * DualSense is the one sold today, so it wins. */
+    if (strcmp(lower, "wireless controller") == 0) {
+        *vendorId = 0x054c;
+        *productId = 0x0ce6;
         return true;
     }
     return false;
@@ -307,7 +381,11 @@ static int DeviceGetFeatureReport(IHS_HIDDevice *device, const uint8_t *reportNu
             /* Same 20-byte layout as ihslib's SDL backend: valid, xinput, controller type
              * (int32), player index (int32), hid, padding. */
             uint8_t caps[20] = {0};
-            int32_t controllerType = CONTROLLER_TYPE_GENERIC;
+            GamepadProvider *provider = pad->provider;
+            IHS_MutexLock(provider->lock);
+            TSL_GamepadInfo info = provider->slots[pad->slot].info;
+            IHS_MutexUnlock(provider->lock);
+            int32_t controllerType = TSL_GamepadControllerType(info.vendorId, info.productId);
             int32_t playerIndex = pad->slot;
             caps[0] = 1;
             caps[1] = 0;

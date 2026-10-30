@@ -24,7 +24,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python2 /usr/bin/python
 
-RUN groupadd -g ${GID} tsl && useradd -m -u ${UID} -g ${GID} -s /bin/bash tsl
+# The host's GID may already exist in the image (macOS users are in staff, GID 20, which
+# is dialout in Ubuntu), so reuse it instead of failing.
+RUN (getent group ${GID} >/dev/null || groupadd -g ${GID} tsl) && useradd -m -u ${UID} -g ${GID} -s /bin/bash tsl
 USER tsl
 WORKDIR /home/tsl
 

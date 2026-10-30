@@ -81,6 +81,15 @@ void TSL_GamepadStateFromStandard(const double *axes, size_t numAxes, const doub
  * Returns false (and leaves the outputs at 0) when neither form matches. */
 bool TSL_GamepadParseIds(const char *id, uint16_t *vendorId, uint16_t *productId);
 
+/* Vendor and product id from a controller's name, for browsers that report only the name
+ * in Gamepad.id (Samsung TVs do). Matches well-known names case-insensitively; returns
+ * false (and leaves the outputs at 0) for anything else. */
+bool TSL_GamepadGuessIds(const char *name, uint16_t *vendorId, uint16_t *productId);
+
+/* Steam's EControllerType for a vendor and product id, so Big Picture and games show the
+ * right button prompts. Pads it doesn't know are k_ControllerTypeUnknownNonSteamController. */
+int32_t TSL_GamepadControllerType(uint16_t vendorId, uint16_t productId);
+
 /* Pack a state into the 48-byte report. reportVersion is the byte Steam sets through
  * the "requested report version" write command. */
 void TSL_GamepadPackReport(const TSL_GamepadState *state, uint8_t reportVersion,

@@ -43,7 +43,9 @@ with each kind of loss like this:
 | Picture and sound stop while the computer still answers | After 15 seconds the app ends that stream and reconnects the same way. |
 
 A lower bandwidth limit helps on a busy network: Steam then makes smaller keyframes, which
-means fewer packets to lose.
+means fewer packets to lose. With Adaptive, Steam sets the bitrate itself: it lowers it when
+data gets lost and raises it again, up to 30 Mbit/s. In a Steam Deck's log the target fell to
+about 2.5 Mbit/s at each loss, so a fixed 20 Mbit/s stays the default.
 
 ## The statistics overlay
 
@@ -82,8 +84,16 @@ Samsung's player also has latency modes, and the app picks one when the page loa
   to Game Mode there, and the low latency mode for HEVC.
 - TVs without the ultra low latency mode use the low latency mode for both.
 
-The player takes its mode when it starts, so the page reloads when the codec setting changes.
-It also reloads after every stream, which gives each stream a fresh player.
+The Player latency setting overrides this: Low uses the low latency mode, and Ultra low uses the
+ultra low latency mode for H.264 where the TV has it. HEVC always gets the low latency mode,
+since on a Samsung QN90D TV on Tizen 9 the ultra low latency mode froze it on its first frame,
+with or without HDR, as on the monitor. H.264 plays in the ultra low latency mode on that TV.
+On TVs from before 2022, which don't read `use.game.mode`, the ultra low latency mode is what
+turns Game Mode on, so Low leaves it off.
+
+The player takes its mode when it starts, so the page reloads when the codec or the Player
+latency setting changes. It also reloads after every stream, which gives each stream a fresh
+player.
 
 On a Samsung S90C, whose panel runs at 144 Hz, the app showed at most about 60 frames per
 second. A 120 fps stream was decoded in full, and about half its frames were dropped.
@@ -138,5 +148,5 @@ Each patch starts with a description of what it does and why.
 | 0022 | Fixes a race in the silence check that could end a live stream with "Nothing from the host for 4294967295 ms". |
 | 0023 | Checks the size of unconnected packets (Steam's MTU pings) without overflowing on 32 bits, and caps the padding a ping can ask for. |
 | 0024 | Drops an error correction shard when its message's buffer can't be allocated, instead of writing through a null pointer. |
-| 0025 | Skips empty audio codec data, which led to a `memcpy` from a null pointer. |
+| 0025 | Skips empty audio codec data, in the audio and microphone channels, which led to a `memcpy` from a null pointer. |
 | 0026 | Lets the app ask for an adaptive bitrate, as Steam's own Steam Link app does. |

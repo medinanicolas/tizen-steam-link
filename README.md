@@ -83,6 +83,7 @@ typed it there. Steam's own on-screen keyboard in Big Picture works too.
 | Maximum resolution | 720p, 1080p, 1440p, 4K | 1080p | For 4K, use HEVC and a bandwidth limit of 50 Mbit/s or more. |
 | Frame rate | 60 or 120 fps | 60 | On a Samsung S90C the app showed about 60 frames per second even at 120. |
 | Video codec | H.264, HEVC, HEVC HDR | H.264 | Steam sends HEVC only when the computer can encode it in hardware. HEVC HDR also offers HDR10, which Steam sends when the computer's display is in HDR mode. |
+| Player latency | Automatic, Low, Ultra low | Automatic | The TV player's latency mode, see [docs/how-it-works.md](docs/how-it-works.md#the-tvs-player). HEVC always uses Low. Changing it reloads the app. |
 | Quality | Automatic, Fast, Balanced, Beautiful | Balanced | Steam's own quality preference. |
 | Bandwidth limit | Adaptive, Automatic, 5 to 100 Mbit/s | 20 Mbit/s | A lower limit means fewer packets to lose on Wi-Fi. Adaptive has Steam lower the bitrate when packets get lost and raise it again, up to 30 Mbit/s, as Steam's own Steam Link app does. Automatic has Steam pick a fixed bitrate. |
 | Audio | On, off | On | |
@@ -103,6 +104,8 @@ Wi-Fi loses packets now and then. This is how the app handles it:
   seconds. A stream the computer ends itself is not reconnected.
 - If the picture and the sound both stop for 15 seconds while the computer still answers, the
   app ends that stream and reconnects the same way.
+- If the streaming part of the app crashes during a stream, the app restarts it and reconnects
+  the same way, instead of staying frozen on the last picture.
 - A computer that is offline shows "Wake" if it reported its network address while it was
   online. Selecting it sends a Wake-on-LAN packet. Steam on the Steam Deck reports that
   address; Steam on Linux desktops may not.

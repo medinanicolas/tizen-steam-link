@@ -34,6 +34,7 @@ extern "C" {
 #include "protobuf/remoteplay.pb-c.h"
 #include "session/channels/ch_data.h"
 #include "session/channels/ch_data_audio.h"
+#include "session/channels/ch_data_microphone.h"
 #include "session/fec.h"
 #include "session/retransmission.h"
 #include "session/session_pri.h"
@@ -158,6 +159,29 @@ void TestGamepadIds() {
     CHECK_EQ(p, 0);
     CHECK(!TSL_GamepadParseIds("Pad (Vendor: 04", &v, &p));
     CHECK(!TSL_GamepadParseIds(nullptr, &v, &p));
+
+    // Name-only ids, as Samsung TVs report them.
+    CHECK(TSL_GamepadGuessIds("DualSense Wireless Controller", &v, &p));
+    CHECK_EQ(v, 0x054c);
+    CHECK_EQ(p, 0x0ce6);
+    CHECK(TSL_GamepadGuessIds("DUALSENSE EDGE WIRELESS CONTROLLER", &v, &p));
+    CHECK_EQ(p, 0x0df2);
+    CHECK(TSL_GamepadGuessIds("Wireless Controller", &v, &p));
+    CHECK_EQ(v, 0x054c);
+    CHECK(TSL_GamepadGuessIds("Xbox Wireless Controller", &v, &p));
+    CHECK_EQ(v, 0x045e);
+    CHECK(!TSL_GamepadGuessIds("Generic USB Joystick", &v, &p));
+    CHECK_EQ(v, 0);
+    CHECK_EQ(p, 0);
+    CHECK(!TSL_GamepadGuessIds(nullptr, &v, &p));
+
+    CHECK_EQ(TSL_GamepadControllerType(0x054c, 0x0ce6), 45);  // PS5
+    CHECK_EQ(TSL_GamepadControllerType(0x054c, 0x09cc), 34);  // PS4
+    CHECK_EQ(TSL_GamepadControllerType(0x045e, 0x028e), 31);  // Xbox 360
+    CHECK_EQ(TSL_GamepadControllerType(0x045e, 0x0b13), 32);  // Xbox One/Series
+    CHECK_EQ(TSL_GamepadControllerType(0x057e, 0x2009), 38);  // Switch Pro
+    CHECK_EQ(TSL_GamepadControllerType(0x1234, 0x5678), 30);  // unknown: generic
+    CHECK_EQ(TSL_GamepadControllerType(0, 0), 30);
 }
 
 void TestGamepadReportLayout() {
@@ -276,7 +300,7 @@ void TestGamepadProvider() {
         int32_t type, player;
         std::memcpy(&type, p + 3, 4);
         std::memcpy(&player, p + 7, 4);
-        CHECK_EQ(type, 30);
+        CHECK_EQ(type, 32);  // Xbox One, from the 045e vendor id
         CHECK_EQ(player, 1);
         IHS_BufferClear(&buf, true);
 
@@ -937,6 +961,10 @@ void TestAudioEmptyCodecData() {
     IHS_SessionChannel *channel = IHS_SessionChannelDataAudioCreate(session, &start);
     CHECK(channel != nullptr);
     IHS_SessionChannelStop(channel);
+    IHS_SessionChannelDestroy(channel);
+    // The microphone channel starts from the same message.
+    channel = IHS_SessionChannelDataMicrophoneCreate(session, &start);
+    CHECK(channel != nullptr);
     IHS_SessionChannelDestroy(channel);
     IHS_SessionDestroy(session);
 }

@@ -20,6 +20,8 @@
     ];
 
     var QUALITIES = {'-1': 'Automatic', 1: 'Fast', 2: 'Balanced', 3: 'Beautiful'};
+    // The player's latency mode; Automatic follows the Tizen version and the codec.
+    var LATENCIES = {0: 'Automatic', 1: 'Low', 2: 'Ultra low'};
 
     function codecText(v) {
         return v === 'hdr' ? 'HEVC HDR' : v ? 'HEVC' : 'H.264';
@@ -36,6 +38,8 @@
             text: function (v) { return v + ' fps'; }},
         // 'hdr' is HEVC with HDR10 offered: HDR only comes as HEVC.
         {key: 'hevc', label: 'Video codec', values: [false, true, 'hdr'], text: codecText},
+        {key: 'latency', label: 'Player latency', values: [0, 1, 2],
+            text: function (v) { return LATENCIES[v]; }},
         {key: 'quality', label: 'Quality', values: [-1, 1, 2, 3],
             text: function (v) { return QUALITIES[v]; }},
         {key: 'bandwidth', label: 'Bandwidth limit', values: [-2, -1, 5000, 10000, 15000, 20000, 30000, 50000, 75000, 100000],
@@ -50,8 +54,8 @@
 
     // 20 Mbit/s, Moonlight's default for 1080p at 60 fps: on Wi-Fi a lower limit means smaller
     // keyframes, so fewer packets to lose. Big Picture, as in Steam's own Steam Link app.
-    var DEFAULT_SETTINGS = {resolution: 1, framerate: 60, hevc: false, quality: 2, bandwidth: 20000, audio: true,
-        bigPicture: true, stats: false};
+    var DEFAULT_SETTINGS = {resolution: 1, framerate: 60, hevc: false, latency: 0, quality: 2, bandwidth: 20000,
+        audio: true, bigPicture: true, stats: false};
     var ONLINE_MS = 9000;
     var PAIR_TIMEOUT_MS = 120000;
     var CONNECT_TIMEOUT_MS = 30000;
@@ -670,11 +674,12 @@
         renderSettings();
         var dlg = $('#dialog-settings');
         var hevcAtOpen = state.settings.hevc;
+        var latencyAtOpen = state.settings.latency;
         openDialog(dlg, $('#settings-list li'), function (action, el) {
             if (action === 'close' || action === 'cancel') {
                 closeDialog();
-                // The module picks the player's latency mode from the codec at page load.
-                if (state.settings.hevc !== hevcAtOpen) location.reload();
+                // The module picks the player's latency mode from these settings at page load.
+                if (state.settings.hevc !== hevcAtOpen || state.settings.latency !== latencyAtOpen) location.reload();
                 return;
             }
             if (el && el.hasAttribute('data-key')) changeSetting(el, 1);
@@ -802,7 +807,14 @@
         var st = null;
         try {
             st = JSON.parse(mod.stats());
-        } catch (e) { /* counts as nothing new below */ }
+        } catch (e) {
+            // A trap in the module means its memory is broken; anything else counts as nothing
+            // new below.
+            if (e instanceof WebAssembly.RuntimeError) {
+                tsl.emit('fatal', {message: 'The streaming module stopped: ' + e.message, crashed: true});
+                return;
+            }
+        }
         var now = Date.now();
         checkStalled(s, st, now);
         if (!st || s.ending) return;
@@ -1267,8 +1279,22 @@
             note('stream failed: ' + d.reason);
         });
         tsl.on('fatal', function (d) {
-            state.fatal = true;
             note('FATAL ' + d.message);
+            // After a crash nothing calls into the module again: the thread may have died holding
+            // one of its locks, and a call would then hang the page before it can reload.
+            if (d.crashed) mod = null;
+            // A crash during a stream: a fresh page brings a fresh module, and the stream
+            // reconnects as it does when it gets stuck.
+            if (d.crashed && state.stream) {
+                // The input handlers call the module while the stream is connected.
+                state.stream.connected = false;
+                if (!state.stream.ending) {
+                    console.warn('[Stream] ' + d.message);
+                    connectionLost(state.stream, true, 'The app hit an error, reconnecting…');
+                }
+                return;
+            }
+            state.fatal = true;
             toast(d.message, true, true);
         });
     }
