@@ -1,0 +1,33 @@
+Skip empty audio codec data.
+
+Steam sends codec_data with a length of 0 for Opus. ChannelAudioInit then called
+memcpy(malloc(0), NULL, 0), which UndefinedBehaviorSanitizer reports: memcpy's pointers must
+not be null even for 0 bytes. Empty codec data is now treated as none, in the microphone
+channel too, which reads the same message.
+
+diff --git a/src/session/channels/ch_data_audio.c b/src/session/channels/ch_data_audio.c
+index eaed464..3af08f5 100644
+--- a/src/session/channels/ch_data_audio.c
++++ b/src/session/channels/ch_data_audio.c
+@@ -73,7 +73,7 @@ static void ChannelAudioInit(IHS_SessionChannel *channel, const void *config) {
+     audioCh->config.channels = message->channels;
+     audioCh->config.frequency = message->frequency;
+     audioCh->config.codec = (IHS_StreamAudioCodec) message->codec;
+-    if (message->has_codec_data) {
++    if (message->has_codec_data && message->codec_data.len > 0) {
+         audioCh->config.codecDataLen = message->codec_data.len;
+         audioCh->config.codecData = malloc(message->codec_data.len);
+         memcpy(audioCh->config.codecData, message->codec_data.data, message->codec_data.len);
+diff --git a/src/session/channels/ch_data_microphone.c b/src/session/channels/ch_data_microphone.c
+index ca1e022..ae7f9b8 100644
+--- a/src/session/channels/ch_data_microphone.c
++++ b/src/session/channels/ch_data_microphone.c
+@@ -70,7 +70,7 @@ static void ChannelMicrophoneInit(IHS_SessionChannel *channel, const void *confi
+     mic->config.channels = message->channels;
+     mic->config.frequency = message->frequency;
+     mic->config.codec = (IHS_StreamAudioCodec) message->codec;
+-    if (message->has_codec_data) {
++    if (message->has_codec_data && message->codec_data.len > 0) {
+         mic->config.codecDataLen = message->codec_data.len;
+         mic->config.codecData = malloc(message->codec_data.len);
+         memcpy(mic->config.codecData, message->codec_data.data, message->codec_data.len);

@@ -144,3 +144,6 @@ Each patch starts with a description of what it does and why.
 | 0020 | Starts a data channel over after a gap longer than its window, instead of leaving it quiet for good. |
 | 0021 | Lets the app offer HDR10 to Steam, and passes on the colorspace Steam chose for the stream. |
 | 0022 | Fixes a race in the silence check that could end a live stream with "Nothing from the host for 4294967295 ms". |
+| 0023 | Checks the size of unconnected packets (Steam's MTU pings) without overflowing on 32 bits, and caps the padding a ping can ask for. |
+| 0024 | Drops an error correction shard when its message's buffer can't be allocated, instead of writing through a null pointer. |
+| 0025 | Skips empty audio codec data, in the audio and microphone channels, which led to a `memcpy` from a null pointer. |

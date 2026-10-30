@@ -34,6 +34,7 @@ extern "C" {
 #include "protobuf/remoteplay.pb-c.h"
 #include "session/channels/ch_data.h"
 #include "session/channels/ch_data_audio.h"
+#include "session/channels/ch_data_microphone.h"
 #include "session/fec.h"
 #include "session/retransmission.h"
 #include "session/session_pri.h"
@@ -892,6 +893,82 @@ void TestSilenceMs() {
     CHECK_EQ(IHS_SessionSilenceMs(5, 0xFFFFFFF0u), 21);  // the 32-bit millisecond clock wraps
 }
 
+// Steam's MTU pings arrive as unconnected packets: [u8 type][u32 size][CDiscoveryPingRequest].
+// A size near 4 GB used to pass the bounds check on 32 bits (offset + size wrapped around), and
+// packet_size_requested went to the padding unchecked. The session isn't run, so its send queue
+// shows whether a ping got an answer.
+void TestUnconnectedPingSizes() {
+    uint8_t random[tsl::Identity::kRandomBytes] = {3};
+    tsl::Identity id = tsl::Identity::FromRandom(random, "test");
+    IHS_ClientConfig config = id.ClientConfig();
+    tsl::HostKey key{};
+    config.secretKey = key.data();
+    IHS_SessionInfo info{};
+    IHS_IPAddressFromString(&info.address.ip, "127.0.0.1");
+    info.address.port = 27031;
+    info.sessionKeyLen = 32;
+    IHS_Session *session = IHS_SessionCreate(&config, &info);
+    IHS_SessionChannel *discovery = IHS_SessionChannelFor(session, IHS_SessionChannelIdDiscovery);
+    // wrap: claim a message size near 4 GB instead of the real one.
+    auto receive = [&](bool wrap, uint32_t requested) {
+        CDiscoveryPingRequest ping = CDISCOVERY_PING_REQUEST__INIT;
+        ping.has_sequence = 1;
+        ping.sequence = 1;
+        ping.has_packet_size_requested = 1;
+        ping.packet_size_requested = requested;
+        uint8_t message[32];
+        size_t messageLen = cdiscovery_ping_request__pack(&ping, message);
+        uint32_t size = wrap ? 0xFFFFFFFCu : static_cast<uint32_t>(messageLen);
+        IHS_SessionPacket packet{};
+        packet.header.type = IHS_SessionPacketTypeUnconnected;
+        packet.header.channelId = IHS_SessionChannelIdDiscovery;
+        uint8_t prefix[5] = {k_EStreamDiscoveryPingRequest, static_cast<uint8_t>(size), static_cast<uint8_t>(size >> 8),
+                             static_cast<uint8_t>(size >> 16), static_cast<uint8_t>(size >> 24)};
+        // Exactly the packet's size, so that reading past it is past the allocation.
+        IHS_BufferInit(&packet.body, sizeof(prefix) + messageLen, sizeof(prefix) + messageLen);
+        IHS_BufferAppendMem(&packet.body, prefix, sizeof(prefix));
+        IHS_BufferAppendMem(&packet.body, message, messageLen);
+        IHS_SessionChannelReceivedPacket(discovery, &packet);
+        IHS_BufferClear(&packet.body, true);
+    };
+    receive(true, 512);  // size past the packet: ignored, without reading past it
+    CHECK(IHS_QueueIsEmpty(session->sendQueue));
+    receive(false, 0xFFFFFFFFu);  // asks for 4 GB of padding: ignored
+    CHECK(IHS_QueueIsEmpty(session->sendQueue));
+    receive(false, 512);  // a real probe size gets its answer
+    CHECK(!IHS_QueueIsEmpty(session->sendQueue));
+    IHS_SessionDestroy(session);
+}
+
+// Steam sends Opus with codec_data of length 0, which used to reach memcpy as a null pointer.
+void TestAudioEmptyCodecData() {
+    uint8_t random[tsl::Identity::kRandomBytes] = {4};
+    tsl::Identity id = tsl::Identity::FromRandom(random, "test");
+    IHS_ClientConfig config = id.ClientConfig();
+    tsl::HostKey key{};
+    config.secretKey = key.data();
+    IHS_SessionInfo info{};
+    IHS_IPAddressFromString(&info.address.ip, "127.0.0.1");
+    info.address.port = 27031;
+    info.sessionKeyLen = 32;
+    IHS_Session *session = IHS_SessionCreate(&config, &info);
+    CStartAudioDataMsg start = CSTART_AUDIO_DATA_MSG__INIT;
+    start.channel = 3;
+    start.codec = k_EStreamAudioCodecOpus;
+    start.channels = 2;
+    start.frequency = 48000;
+    start.has_codec_data = 1;  // empty: data is NULL, len 0
+    IHS_SessionChannel *channel = IHS_SessionChannelDataAudioCreate(session, &start);
+    CHECK(channel != nullptr);
+    IHS_SessionChannelStop(channel);
+    IHS_SessionChannelDestroy(channel);
+    // The microphone channel starts from the same message.
+    channel = IHS_SessionChannelDataMicrophoneCreate(session, &start);
+    CHECK(channel != nullptr);
+    IHS_SessionChannelDestroy(channel);
+    IHS_SessionDestroy(session);
+}
+
 // A reliable packet waits for its ACK, and its timer sends it again after 10 ms. On Wi-Fi the
 // round trip is about that long, so an ACK often lands while the timer fires; with a controller
 // sending 250 reliable reports a second that happens constantly. Cancelling used to free the
@@ -985,6 +1062,8 @@ int main() {
     TestDataChannelGetsPastLostPacket();
     TestRetransmissionCancelRacesTimer();
     TestSilenceMs();
+    TestUnconnectedPingSizes();
+    TestAudioEmptyCodecData();
     TestWakePacket();
     IHS_Quit();
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
