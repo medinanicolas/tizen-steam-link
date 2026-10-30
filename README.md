@@ -104,6 +104,8 @@ Wi-Fi loses packets now and then. This is how the app handles it:
   seconds. A stream the computer ends itself is not reconnected.
 - If the picture and the sound both stop for 15 seconds while the computer still answers, the
   app ends that stream and reconnects the same way.
+- If the streaming part of the app crashes during a stream, the app restarts it and reconnects
+  the same way, instead of staying frozen on the last picture.
 - A computer that is offline shows "Wake" if it reported its network address while it was
   online. Selecting it sends a Wake-on-LAN packet. Steam on the Steam Deck reports that
   address; Steam on Linux desktops may not.
